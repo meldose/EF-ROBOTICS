@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# importing the modules
 import os, re, time, threading
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -13,7 +14,9 @@ import dash_bootstrap_components as dbc
 import requests as _requests
 if not getattr(_requests.sessions.Session.request, "_wrapped_with_timeout", False):
     _orig_request = _requests.sessions.Session.request
-    def _request_with_default_timeout(self, method, url, **kwargs):
+    
+# function to request the url with specific timeout
+def _request_with_default_timeout(self, method, url, **kwargs):
         if "timeout" not in kwargs or kwargs["timeout"] is None:
             kwargs["timeout"] = 5.0
         return _orig_request(self, method, url, **kwargs)
@@ -48,6 +51,9 @@ ACTION         = {"lift_up": 47, "lift_down": 48}
 
 # Simulation pause action
 PAUSE_SECONDS = 5
+
+# setting function for setting the pause time for the backend
+
 def act_pause(seconds: int = PAUSE_SECONDS) -> Dict[str, Any]:
     # type=18/pauseTime per your backend
     return {"type": 18, "data": {"pauseTime": int(seconds)}}
@@ -75,11 +81,13 @@ except Exception:
         def cleanup(self):          pass
     GPIO = DummyGPIO()  # type: ignore
 
+# initialising the GPIO
 def _gpio_init():
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(RELAY_PIN, GPIO.OUT)
     GPIO.output(RELAY_PIN, GPIO.LOW if ACTIVE_HIGH else GPIO.HIGH)
 
+# function to pulse the gpio
 def _pulse_gpio():
     _log(f"[GPIO] PULSE pin {RELAY_PIN} ({'active-high' if ACTIVE_HIGH else 'active-low'}) {PULSE_SEC}s")
     GPIO.output(RELAY_PIN, GPIO.HIGH if ACTIVE_HIGH else GPIO.LOW)
@@ -97,7 +105,7 @@ _ROBOT_LOCK = threading.Lock()
 _ROBOT_ID: str = DEFAULT_ROBOT_ID
 _ROBOT: Optional[Robot] = None
 
-
+# function for pickups (checking if the wrapper is there in the list , if not add it into the list)
 def _pickups(robot_id: str) -> List[str]:
     df = _poi_df()
     if df.empty:
@@ -112,6 +120,7 @@ def _pickups(robot_id: str) -> List[str]:
         except: return (1, 999999)
     return sorted(picks, key=key)
 
+# function for drops (checking the list of the names in the list)
 def _drops(robot_id: str) -> List[str]:
     df = _poi_df()
     if df.empty: return []
@@ -134,7 +143,7 @@ def _drops(robot_id: str) -> List[str]:
         except: return 0
     return sorted(pool, key=lambda n: (fam(n), num(n), n.lower()))
 
-
+#### function for gettign the robot system #####
 def get_robot() -> Robot:
     global _ROBOT
     with _ROBOT_LOCK:
@@ -142,6 +151,7 @@ def get_robot() -> Robot:
             _ROBOT = Robot(_ROBOT_ID)
         return _ROBOT
 
+# function for setting the robot ##
 def set_robot(robot_id: str):
     global _ROBOT_ID, _ROBOT
     with _ROBOT_LOCK:
@@ -149,6 +159,7 @@ def set_robot(robot_id: str):
             _ROBOT_ID = robot_id
             _ROBOT = Robot(robot_id)
 
+# function for getting data frame of the point of interest
 def _poi_df() -> pd.DataFrame:
     try:
         r = get_robot()
@@ -157,6 +168,7 @@ def _poi_df() -> pd.DataFrame:
     except Exception:
         return pd.DataFrame()
 
+# Setting the row of the Point of interest ######
 def _norm_poi(row: pd.Series | Dict[str, Any]) -> Dict[str, Any]:
     # accepts pd.Series OR dict from get_poi_details
     g = row.get if hasattr(row, "get") else (lambda k, d=None: row[k] if k in row else d)  # type: ignore
@@ -171,6 +183,7 @@ def _norm_poi(row: pd.Series | Dict[str, Any]) -> Dict[str, Any]:
         "id": g("id"),
     }
 
+# function to match the name of the Data frame of the POI ######
 def _first_match_name(df: pd.DataFrame, query: str, *, regex: bool = False) -> Optional[str]:
     if df.empty or "name" not in df.columns:
         return None
@@ -180,6 +193,7 @@ def _first_match_name(df: pd.DataFrame, query: str, *, regex: bool = False) -> O
         return None
     return str(s[m].iloc[0])
 
+# function to get the POI details safe (trying an exception case)
 def _poi_details_safe(name_query: str, *, regex: bool = False) -> Optional[Dict[str, Any]]:
     df = _poi_df()
     nm = _first_match_name(df, name_query, regex=regex)
@@ -192,15 +206,18 @@ def _poi_details_safe(name_query: str, *, regex: bool = False) -> Optional[Dict[
         row = df[df["name"].astype(str) == nm]
         return _norm_poi(row.iloc[0]) if not row.empty else None
 
+# function to get all the POI names #####
 def _all_poi_names() -> List[str]:
     df = _poi_df()
     if df.empty or "name" not in df.columns:
         return []
     return sorted({str(n).strip() for n in df["name"].astype(str).tolist() if str(n).strip()})
 
+# function to find the POI from the list from the list of the safely achieved list of POI ####
 def _find_poi(name: str) -> Optional[Dict[str, Any]]:
     return _poi_details_safe(name, regex=False)
 
+# function for waiting the POI ###
 def _find_waiting() -> Optional[Dict[str, Any]]:
     p = _poi_details_safe(WAITING_POI_NAME, regex=False)
     if p: return p
@@ -209,6 +226,7 @@ def _find_waiting() -> Optional[Dict[str, Any]]:
     df = _poi_df()
     return _norm_poi(df.iloc[0]) if not df.empty else None
 
+# function for finding the wrapper ####
 def _find_wrapper() -> Optional[Dict[str, Any]]:
     # p = _poi_details_safe(r"charging\s*pile", regex=True)
     p = _poi_details_safe(r"wrapper", regex=True) ## case sensitive ?           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -220,6 +238,7 @@ def _find_wrapper() -> Optional[Dict[str, Any]]:
         return _poi_details_safe(str(m.iloc[0]["name"]), regex=False)
     return None
 
+# function for checking the position of the object in x and y ######
 def _as_xy(obj):
     if isinstance(obj, dict):
         if "x" in obj and "y" in obj:
@@ -232,20 +251,24 @@ def _as_xy(obj):
         return float(obj[0]), float(obj[1])
     raise TypeError(f"Unsupported position type: {type(obj)} -> {obj!r}")
 
+# function for checking the distance 
 def _distance(curr, target: Dict[str, Any]) -> float:
     cx, cy = _as_xy(curr)
     tx, ty = float(target["x"]), float(target["y"])
     return ((cx - tx) ** 2 + (cy - ty) ** 2) ** 0.5
 
+# function for acting the lift up and down action #####
 def act_lift_up()   -> Dict[str, Any]: return {"type": ACTION["lift_up"],   "data": {}}
 def act_lift_down() -> Dict[str, Any]: return {"type": ACTION["lift_down"], "data": {}}
 
+# function for getting the point###
 def pt(p: Dict[str, Any], acts=None, stopRadius=1.0) -> Dict[str, Any]:
     d = {"x": p["x"], "y": p["y"], "yaw": p["yaw"], "areaId": p["areaId"], "stopRadius": float(stopRadius)}
     if acts: d["stepActs"] = acts
     d["ext"] = {"id": p.get("id"), "name": p.get("name")}
     return d
 
+# function for getting the back point #####
 def back_pt(p: Dict[str, Any]) -> Dict[str, Any]:
     return {"x": p["x"], "y": p["y"], "yaw": p["yaw"], "areaId": p["areaId"], "stopRadius": 1.0, "ext": {"id": p.get("id"), "name": p.get("name")}}
 
@@ -257,19 +280,23 @@ LOG_LOCK = threading.Lock()
 RESET_ROWS = defaultdict(int)
 RESET_LOCK = threading.Lock()
 
+# function for getting the log message ####
 def _log(msg: str):
     print(msg, flush=True)
     with LOG_LOCK:
         LOG_BUF.append(f"{datetime.now().isoformat(timespec='seconds')} | {msg}")
 
+# function for consuming the logs ####
 def _consume_logs() -> str:
     with LOG_LOCK:
         return "\n".join(LOG_BUF)
 
+# function for resetting the row ###
 def _set_reset_row(i: int, pulses: int = 1):
     with RESET_LOCK:
         RESET_ROWS[int(i)] = max(RESET_ROWS.get(int(i), 0), pulses)
 
+# function for reseting the rows ##
 def _take_reset_rows() -> set:
     to_reset = set()
     with RESET_LOCK:
@@ -281,7 +308,10 @@ def _take_reset_rows() -> set:
                 del RESET_ROWS[idx]
     return to_reset
 
+##### DWELL LOGIC ##########
 # ===== Dwell utilities =====
+
+#function for setting up the dwell time until the robot is inside the specific position
 def dwell_until(robot: Robot, target: Dict[str, Any], radius_m: float, dwell_s: float) -> bool:
     start = None
     deadline = time.monotonic() + 3600
@@ -310,6 +340,7 @@ def dwell_until(robot: Robot, target: Dict[str, Any], radius_m: float, dwell_s: 
     _log("[Dwell] timeout.")
     return False
 
+# function for moving robot then dwell ####
 def depart_then_dwell(robot: Robot, target: Dict[str, Any], radius_m: float, dwell_s: float) -> bool:
     while True:
         try:
@@ -321,9 +352,13 @@ def depart_then_dwell(robot: Robot, target: Dict[str, Any], radius_m: float, dwe
         time.sleep(POLL_SEC)
     return dwell_until(robot, target, radius_m, dwell_s)
 
+
+##### BRAIN OF THE SYSTEM #####
 # ===== FSM Runner =====
 from enum import Enum, auto
 
+
+# setting the FSM system ####
 class FSMState(Enum):
     IDLE = auto()
     ROW_START = auto()
@@ -344,6 +379,7 @@ class FSMState(Enum):
 #         self.wrapper = wrapper
 #         self.use_wrapper = use_wrapper
 
+# creating class for setting the Row spec ###
 class RowSpec:
     __slots__ = ("ui_idx","pickup","drop","wrapper","use_wrapper")
     def __init__(self, ui_idx:int, pickup:Dict[str,Any], drop:Dict[str,Any], wrapper:Optional[Dict[str,Any]], use_wrapper:bool):
@@ -364,6 +400,7 @@ class FSMRunner(threading.Thread):
         self._stop = threading.Event()
         self._on_exit = on_exit  # callback to clear global RUNNER
 
+# function to create the list of the robot with its details 
     def _create(self, rob: Robot, name: str, points: List[Dict[str,Any]]):
         body = {
             "task_name": name, "robot": rob.df, "runType": RUN_TYPE_LIFT, "sourceType": SOURCE_SDK,
@@ -376,13 +413,16 @@ class FSMRunner(threading.Thread):
         _log(f"[FSM] submitted: {name} → {resp}")
         return resp
 
+# function to stop the list 
     def stop(self): self._stop.set()
 
+# function to clean it 
     def _cleanup(self):
         if callable(self._on_exit):
             try: self._on_exit()
             except Exception: pass
 
+# function to run FSM tasks that we have given in the list 
     def run(self):
         try:
             _gpio_init()
@@ -734,6 +774,8 @@ def handle_actions(n_start, n_cancel, rstate, *state):
     Input("tick", "n_intervals"),
     prevent_initial_call=False
 )
+
+# function fot checking time for the logs and resetting the rows
 def tick(_n):
     log_text = _consume_logs()
     resets = _take_reset_rows()
