@@ -1,10 +1,15 @@
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import JointState
-import time
+# !/usr/bin/env python3##
+
+import rclpy # import the ROS client library
+from rclpy.node import Node # import the Node class
+from sensor_msgs.msg import JointState # import the JointState message type
+import time # import the time module
 
 
+# create a class that inherits from the Node class
 class Humanoid_Robot(Node):
+    
+# function to intialize the node
     def __init__(self):
         super().__init__('joint_mover')
         self.publisher_joint = self.create_publisher(JointState, '/humanoid_joint_command', 10)
@@ -25,9 +30,11 @@ class Humanoid_Robot(Node):
             'right_elbow_pitch_joint','right_elbow_roll_joint'
         ]
 
+# fucntion to get the joint states
     def joint_state_callback(self, msg):
         self.latest_joint_state = msg
 
+# function to wait for the joint states
     def wait_for_joint_state(self, timeout=5.0):
         start = time.time()
         while self.latest_joint_state is None:
@@ -37,6 +44,7 @@ class Humanoid_Robot(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
         return True
 
+# function to move the joints
     def move_joints(self, start_positions, end_positions, duration):
         start_time = time.time()
         while time.time() - start_time < duration:
@@ -53,7 +61,7 @@ class Humanoid_Robot(Node):
             self.publisher_joint.publish(msg)
             time.sleep(0.01)
 
-
+# function to run the node
 def main(args=None):
     rclpy.init(args=args)
     humanoid = Humanoid_Robot()
@@ -96,6 +104,6 @@ def main(args=None):
 
     rclpy.shutdown()
 
-
+# run the node
 if __name__ == '__main__':
     main()
