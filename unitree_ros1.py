@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-import rospy
-from sensor_msgs.msg import JointState
-import time
+import rospy # import ROS1
+from sensor_msgs.msg import JointState # importing joint states
+import time # imoporting time module 
 
-
+# create a class HumanoidRobots 
 class HumanoidRobot(object):
 
+# function to initialize the class
     def __init__(self):
         # Initialize ROS1 node
         rospy.init_node('joint_mover', anonymous=True)
@@ -27,9 +28,11 @@ class HumanoidRobot(object):
             'right_elbow_pitch_joint', 'right_elbow_roll_joint'
         ]
 
+# function to get the joint states
     def joint_state_callback(self, msg):
         self.latest_joint_state = msg
 
+# function to wait for the joint states
     def wait_for_joint_state(self, timeout=5.0):
         start = time.time()
         rospy.loginfo("Waiting for /humanoid_joint_states...")
@@ -43,6 +46,7 @@ class HumanoidRobot(object):
         rospy.loginfo("Joint states received.")
         return True
 
+# creating funtion to move the joints
     def move_joints(self, start_positions, end_positions, duration):
         rospy.loginfo("Moving joints...")
         start_time = time.time()
@@ -66,7 +70,7 @@ class HumanoidRobot(object):
             self.publisher_joint.publish(msg)
             rate.sleep()
 
-
+# main function 
 def main():
     humanoid = HumanoidRobot()
 
@@ -110,7 +114,7 @@ def main():
 
     rospy.loginfo("Motion sequence completed.")
 
-
+# run the main function
 if __name__ == '__main__':
     try:
         main()
